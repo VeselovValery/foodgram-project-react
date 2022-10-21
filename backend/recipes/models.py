@@ -47,6 +47,24 @@ class Tag(models.Model):
         return self.name
 
 
+class RecipeIngredient(models.Model):
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        related_name='amount')
+    amount = models.PositiveIntegerField(
+        verbose_name='Количество',
+        default=1
+        )
+
+    class Meta:
+        ordering = ['-id']
+        verbose_name = 'Количество ингредиента'
+
+    def __str__(self):
+        return f' {self.ingredient} - {self.amount}'
+
+
 class Recipe(models.Model):
     author = models.ForeignKey(
         User,
@@ -72,9 +90,9 @@ class Recipe(models.Model):
         default=1
     )
     ingredients = models.ManyToManyField(
-        Ingredient,
-        through='RecipeIngredient',
-        verbose_name='Ингредиенты'
+        RecipeIngredient,
+        verbose_name='Ингредиенты',
+        related_name='recipes',
     )
     tags = models.ManyToManyField(
         Tag,
@@ -91,24 +109,22 @@ class Recipe(models.Model):
         verbose_name = 'Рецепт'
 
     def __str__(self):
-        return f'{self.name}'
+        return f'{self.name} от {self.author}'
 
 
-class RecipeIngredient(models.Model):
-    recipe = models.ForeignKey(
-        Recipe,
+class UserLikeRecipe(models.Model):
+    user = models.OneToOneField(
+        User,
         on_delete=models.CASCADE,
-        related_name='amount_ingredients'
+        verbose_name='Пользователь',
+        related_name='like_recipe'
     )
-    ingredient = models.ForeignKey(
-        Ingredient,
-        on_delete=models.CASCADE,
-        related_name='ingredient_for_recipe')
-    amount = models.IntegerField(
-        verbose_name='Количество',
-        default=1
-        )
+    recipes = models.ManyToManyField(
+        Recipe,
+        verbose_name='Избранный рецепт',
+        related_name='like_recipe'
+    )
 
     class Meta:
         ordering = ['-id']
-        verbose_name = 'Количество ингредиента'
+        verbose_name = 'Избранный рецепт'

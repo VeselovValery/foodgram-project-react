@@ -9,16 +9,21 @@ class User(AbstractUser):
     ]
     email = models.EmailField(
         verbose_name='Email',
-        max_length=255,
+        max_length=254,
+        unique=True
+    )
+    username = models.CharField(
+        verbose_name='Имя пользователя',
+        max_length=150,
         unique=True
     )
     first_name = models.CharField(
         verbose_name='Имя',
-        max_length=255
+        max_length=150
     )
     last_name = models.CharField(
         verbose_name='Фамилия',
-        max_length=255
+        max_length=150
     )
     role = models.CharField(
         max_length=10,
@@ -26,9 +31,10 @@ class User(AbstractUser):
         default='user'
     )
 
+    USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = [
         'password',
-        'email',
+        'username',
         'first_name',
         'last_name'
     ]
@@ -45,28 +51,18 @@ class User(AbstractUser):
         return self.role == 'admin'
 
 
-class Follow(models.Model):
-    author = models.ForeignKey(
+class Subscriptions(models.Model):
+    user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='author',
-        verbose_name='Автор'
+        verbose_name='Пользователь'
     )
-    following = models.ForeignKey(
+    authors = models.ManyToManyField(
         User,
-        on_delete=models.CASCADE,
-        related_name='following',
-        verbose_name='Последователь'
+        related_name='sub_authors',
+        verbose_name='На кого подписан'
     )
 
     class Meta:
-        ordering = ['author']
-        verbose_name = 'Подписчик'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['author', 'following'], name="unique_user_following"
-            )
-        ]
-
-    def __str__(self):
-        return f'Пользователь {self.following} подписан на {self.author}'
+        ordering = ['user']
+        verbose_name = 'На кого подписан'
