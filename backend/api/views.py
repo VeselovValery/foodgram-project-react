@@ -1,17 +1,22 @@
-from django.shortcuts import render
-from django.shortcuts import get_list_or_404, get_object_or_404
-from rest_framework import viewsets
 from django.contrib.auth import get_user_model
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status
-from rest_framework import generics, mixins, viewsets
+from rest_framework import generics, viewsets
 from rest_framework import permissions
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework import pagination
-# from rest_framework.pagination import LimitOffsetPagination
-from djoser.views import UserViewSet
 
-from recipes.models import Tag, Ingredient, Recipe, UserLikeRecipe
+from recipes.models import (
+    Tag,
+    Ingredient,
+    Recipe,
+    UserLikeRecipe,
+    UserShoppingCard
+)
 from users.models import Subscriptions
+from .filters import RecipeFilter
 from .serializers import (
     TagSerializer,
     IngredientSerializer,
@@ -27,6 +32,7 @@ User = get_user_model()
 class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+    pagination_class = None
 
 
 class IngredientViewSet(viewsets.ModelViewSet):
@@ -39,6 +45,8 @@ class IngredientViewSet(viewsets.ModelViewSet):
 class RecipesViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = RecipeFilter
 
     def get_serializer_class(self):
         if self.request.method in permissions.SAFE_METHODS:
@@ -142,3 +150,70 @@ class SubscribeView(
         author = get_object_or_404(User, id=author_id)
         instance.authors.remove(author)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UserShoppingCardView(
+    generics.CreateAPIView,
+    generics.DestroyAPIView
+):
+    queryset = Recipe.objects.all()
+    serializer_class = UserLikeRecipeSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def create(self, request, *args, **kwargs):
+        user = self.request.user
+        user_shopping, created = UserShoppingCard.objects.get_or_create(
+            user=user
+        )
+        recipe = get_object_or_404(Recipe, id=self.kwargs.get('recipe_id'))
+        if user_shopping.recipes.filter(pk=recipe.pk).exists():
+            return Response(
+                {'errors': 'Этот рецепт уже есть в списке покупок'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        user_shopping.recipes.add(recipe)
+        serializer = self.get_serializer(recipe)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def get_object(self):
+        user_shopping = get_object_or_404(
+            UserShoppingCard,
+            user=self.request.user
+        )
+        return user_shopping
+
+    def destroy(self, request, *args, **kwargs):
+        recipe_id = self.kwargs.get('recipe_id')
+        instance = self.get_object()
+        if not instance.recipes.filter(pk=recipe_id).exists():
+            return Response(
+                {'errors': 'Данного рецепта нет в списке покупок'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        recipe = get_object_or_404(Recipe, id=recipe_id)
+        instance.recipes.remove(recipe)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(http_method_names=['GET'])
+@permission_classes((permissions.IsAuthenticated,))
+def download_shopping_cart(request):
+    ingredient_list = ['Cписок покупок:']
+    count_position_ingredient = 1
+    user_shopping = get_object_or_404(UserShoppingCard, user=request.user)
+    recipe_list = user_shopping.recipes.all()
+    for recipe in recipe_list:
+        for ingredient in recipe.ingredients.all():
+            position_ingredient = (f'{count_position_ingredient}. '
+                                   f'{ingredient.ingredient.name} - '
+                                   f'{ingredient.amount} '
+                                   f'{ingredient.ingredient.unit}.')
+            ingredient_list.append(position_ingredient)
+            count_position_ingredient += 1
+    response = HttpResponse(
+        '\n'.join(ingredient_list),
+        'Content-Type: application/pdf'
+    )
+    response['Content-Disposition'] = ('attachment; '
+                                       'filename="shopping_cart.pdf"')
+    return response

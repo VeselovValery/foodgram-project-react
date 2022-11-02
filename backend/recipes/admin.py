@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Ingredient, Tag, Recipe, RecipeIngredient, UserLikeRecipe
+from .models import (
+    Ingredient,
+    Tag,
+    Recipe,
+    RecipeIngredient,
+    UserLikeRecipe,
+    UserShoppingCard
+)
 
 EMPTY_FILLING = '-пусто-'
 
@@ -64,6 +71,20 @@ class RecipeIngredientAdmin(admin.ModelAdmin):
 
 @admin.register(UserLikeRecipe)
 class UserLikeRecipeAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'user', 'get_recipes')
+    list_display_links = ('user',)
+    search_fields = ('user',)
+    list_filter = ('user',)
+    empty_value_display = EMPTY_FILLING
+
+    @admin.display(description='Рецепты')
+    def get_recipes(self, obj):
+        list_recipes = [recipe.name for recipe in obj.recipes.all()]
+        return ', '.join(list_recipes)
+
+
+@admin.register(UserShoppingCard)
+class UserShoppingCardAdmin(admin.ModelAdmin):
     list_display = ('pk', 'user', 'get_recipes')
     list_display_links = ('user',)
     search_fields = ('user',)

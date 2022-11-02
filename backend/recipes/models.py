@@ -128,3 +128,21 @@ class UserLikeRecipe(models.Model):
     class Meta:
         ordering = ['-id']
         verbose_name = 'Избранный рецепт'
+
+
+class UserShoppingCard(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Пользователь',
+        related_name='shopping_card'
+    )
+    recipes = models.ManyToManyField(
+        Recipe,
+        verbose_name='Рецепты для список покупок',
+        related_name='shopping_card'
+    )
+
+    class Meta:
+        ordering = ['-id']
+        verbose_name = 'Список покупок'
