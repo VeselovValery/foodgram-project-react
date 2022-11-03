@@ -9,7 +9,7 @@ services:
       - ./.env
 
   backend:
-    image: manik86/foodgram_backend:v1.0.4
+    image: manik86/foodgram_backend:v1.0.6
     restart: always
     volumes:
       - static_value:/app/static/
