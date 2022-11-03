@@ -10,7 +10,6 @@ from recipes.models import (
     UserLikeRecipe,
     UserShoppingCard
 )
-from users.models import Subscriptions
 
 User = get_user_model()
 
@@ -18,11 +17,6 @@ User = get_user_model()
 class IsSubscribed:
 
     def get_is_subscribed(self, obj):
-        # try:
-        #     user_subscribers = Subscriptions.objects.get(id=obj.id)
-        # except Subscriptions.DoesNotExist:
-        #     return False
-        # return user_subscribers.authors.exists()
         user = self.context["request"].user
         if not user.is_authenticated:
             return False
@@ -88,11 +82,6 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class RecipeIngredientGetSerializer(serializers.ModelSerializer):
-    # ingredient = IngredientSerializer(read_only=True)
-    #
-    # class Meta:
-    #     model = RecipeIngredient
-    #     fields = ('ingredient', 'amount')
     id = serializers.ReadOnlyField(source='ingredient.id')
     name = serializers.ReadOnlyField(source='ingredient.name')
     measurement_unit = serializers.ReadOnlyField(
