@@ -54,6 +54,7 @@ class User(AbstractUser):
 class Subscriptions(models.Model):
     user = models.ForeignKey(
         User,
+        related_name='follower',
         on_delete=models.CASCADE,
         verbose_name='Пользователь'
     )
