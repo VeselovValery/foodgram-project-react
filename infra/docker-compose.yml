@@ -9,7 +9,7 @@ services:
       - ./.env
 
   backend:
-    image: manik86/foodgram_backend:latest
+    image: manik86/foodgram_backend:v1.0.1
     restart: always
     volumes:
       - data_value:/app/data/
