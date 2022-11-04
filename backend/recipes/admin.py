@@ -29,6 +29,12 @@ class TagAdmin(admin.ModelAdmin):
     empty_value_display = EMPTY_FILLING
 
 
+class RecipeIngredientInline(admin.TabularInline):
+    model = RecipeIngredient
+    min_num = 1
+    extra = 0
+
+
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
@@ -45,12 +51,14 @@ class RecipeAdmin(admin.ModelAdmin):
     list_display_links = ('name',)
     search_fields = ('author__username', 'name', 'tags')
     list_filter = ('author__username', 'name', 'tags')
+    inlines = (RecipeIngredientInline,)
+    exclude = ('ingredients',)
     empty_value_display = EMPTY_FILLING
 
     @admin.display(description='Ингредиенты')
     def get_ingredients(self, obj):
         list_ingredients = [
-            ingredient.ingredient.name for ingredient in obj.ingredients.all()
+            ingredient.name for ingredient in obj.ingredients.all()
         ]
         return ', '.join(list_ingredients)
 
@@ -62,10 +70,10 @@ class RecipeAdmin(admin.ModelAdmin):
 
 @admin.register(RecipeIngredient)
 class RecipeIngredientAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'ingredient', 'amount')
-    list_display_links = ('ingredient',)
-    search_fields = ('ingredient__name',)
-    list_filter = ('ingredient__name',)
+    list_display = ('pk', 'recipe', 'ingredient', 'amount')
+    list_display_links = ('recipe',)
+    search_fields = ('recipe__name', 'ingredient__name')
+    list_filter = ('recipe__name', 'ingredient__name',)
     empty_value_display = EMPTY_FILLING
 
 

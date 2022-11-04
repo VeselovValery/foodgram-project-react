@@ -17,7 +17,7 @@ User = get_user_model()
 class IsSubscribed:
 
     def get_is_subscribed(self, obj):
-        user = self.context["request"].user
+        user = self.context['request'].user
         if not user.is_authenticated:
             return False
         return user.follower.filter(authors=obj).exists()
@@ -94,7 +94,10 @@ class RecipeIngredientGetSerializer(serializers.ModelSerializer):
 
 
 class RecipeIngredientCreateSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField()
+    id = serializers.PrimaryKeyRelatedField(
+        source='ingredient',
+        queryset=Ingredient.objects.all()
+    )
     amount = serializers.IntegerField()
 
     class Meta:
@@ -105,7 +108,11 @@ class RecipeIngredientCreateSerializer(serializers.ModelSerializer):
 class RecipeGetSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = UserGetSerializer(read_only=True)
-    ingredients = RecipeIngredientGetSerializer(many=True, read_only=True)
+    ingredients = RecipeIngredientGetSerializer(
+        many=True,
+        read_only=True,
+        source='recipe_ingredients'
+    )
     is_favorited = serializers.SerializerMethodField()
     is_in_shopping_cart = serializers.SerializerMethodField()
     image = Base64ImageField()
@@ -126,20 +133,24 @@ class RecipeGetSerializer(serializers.ModelSerializer):
         )
 
     def get_is_favorited(self, obj):
-        user = self.context["request"].user
-        try:
-            user_like_recipe = UserLikeRecipe.objects.get(user=user)
-        except (UserLikeRecipe.DoesNotExist, TypeError):
+        user = self.context['request'].user
+        if not user.is_authenticated:
             return False
-        return user_like_recipe.recipes.filter(pk=obj.pk).exists()
+        if not UserLikeRecipe.objects.filter(user=user).exists():
+            return False
+        return UserLikeRecipe.objects.get(user=user).recipes.filter(
+            pk=obj.pk
+        ).exists()
 
     def get_is_in_shopping_cart(self, obj):
-        user = self.context["request"].user
-        try:
-            user_shopping_card = UserShoppingCard.objects.get(user=user)
-        except (UserShoppingCard.DoesNotExist, TypeError):
+        user = self.context['request'].user
+        if not user.is_authenticated:
             return False
-        return user_shopping_card.recipes.filter(pk=obj.pk).exists()
+        if not UserShoppingCard.objects.filter(user=user).exists():
+            return False
+        return UserShoppingCard.objects.get(user=user).recipes.filter(
+            pk=obj.pk
+        ).exists()
 
 
 class RecipeCreateSerializer(serializers.ModelSerializer):
@@ -153,31 +164,53 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = (
-            "tags",
-            "ingredients",
-            "name",
-            "image",
-            "text",
-            "cooking_time",
+            'tags',
+            'ingredients',
+            'name',
+            'image',
+            'text',
+            'cooking_time',
         )
 
-    def add_ingredients(self, ingredients, recipe):
-        for ingredient in ingredients:
-            current_ingredient = Ingredient.objects.get(pk=ingredient['id'])
-            current_recipe_ingredient, status = (
-                RecipeIngredient.objects.get_or_create(
-                    ingredient=current_ingredient,
-                    amount=ingredient['amount']
-                )
+    def validate_ingredients(self, ingredients):
+        if not ingredients:
+            raise serializers.ValidationError(
+                'Для рецепта нужны ингредиенты!'
             )
-            recipe.ingredients.add(current_recipe_ingredient)
+        unique_ingredient = []
+        for ingredient in ingredients:
+            if ingredient['amount'] < 1:
+                raise serializers.ValidationError(
+                    f'Значение количества ингредиентов должно быть больше 0!'
+                )
+            if ingredient['ingredient'] in unique_ingredient:
+                raise serializers.ValidationError(
+                    'Ингредиент должен быть уникальным!'
+                )
+            unique_ingredient.append(ingredient['ingredient'])
+        return ingredients
+
+    def validate_tags(self, tags):
+        if not tags:
+            raise serializers.ValidationError(
+                'Необходимо установить хотябы один тег!'
+            )
+        return tags
 
     def create(self, validated_data):
-        author = self.context["request"].user
+        author = self.context['request'].user
         ingredients = validated_data.pop('ingredients')
         tags = validated_data.pop('tags')
         recipe = Recipe.objects.create(**validated_data, author=author)
-        self.add_ingredients(ingredients, recipe)
+        create_ingredients = [
+            RecipeIngredient(
+                recipe=recipe,
+                ingredient=ingredient['ingredient'],
+                amount=ingredient['amount']
+            )
+            for ingredient in ingredients
+        ]
+        RecipeIngredient.objects.bulk_create(create_ingredients)
         recipe.tags.set(tags)
         return recipe
 
@@ -185,7 +218,15 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         if 'ingredients' in validated_data:
             ingredients = validated_data.pop('ingredients')
             instance.ingredients.clear()
-            self.add_ingredients(ingredients, instance)
+            create_ingredients = [
+                RecipeIngredient(
+                    recipe=instance,
+                    ingredient=ingredient['ingredient'],
+                    amount=ingredient['amount']
+                )
+                for ingredient in ingredients
+            ]
+            RecipeIngredient.objects.bulk_create(create_ingredients)
         if 'tags' in validated_data:
             instance.tags.set(validated_data.pop('tags'))
         return super().update(instance, validated_data)

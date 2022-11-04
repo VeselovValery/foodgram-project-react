@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status
+from rest_framework import status
 from rest_framework import generics, viewsets
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
@@ -82,8 +82,7 @@ class UserLikeRecipeView(
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def get_object(self):
-        like_recipe = get_object_or_404(UserLikeRecipe, user=self.request.user)
-        return like_recipe
+        return get_object_or_404(UserLikeRecipe, user=self.request.user)
 
     def destroy(self, request, *args, **kwargs):
         recipe_id = self.kwargs.get('recipe_id')
@@ -204,20 +203,27 @@ class UserShoppingCardView(
 @api_view(http_method_names=['GET'])
 @permission_classes((permissions.IsAuthenticated,))
 def download_shopping_cart(request):
-    ingredient_list = ['Cписок покупок:']
-    count_position_ingredient = 1
+    ingredient_list = {}
     user_shopping = get_object_or_404(UserShoppingCard, user=request.user)
     recipe_list = user_shopping.recipes.all()
     for recipe in recipe_list:
         for ingredient in recipe.ingredients.all():
-            position_ingredient = (f'{count_position_ingredient}. '
-                                   f'{ingredient.ingredient.name} - '
-                                   f'{ingredient.amount} '
-                                   f'{ingredient.ingredient.unit}.')
-            ingredient_list.append(position_ingredient)
-            count_position_ingredient += 1
+            amount = recipe.recipe_ingredients.get(
+                ingredient=ingredient
+            ).amount
+            if ingredient.name in ingredient_list:
+                ingredient_list[
+                    ingredient.name
+                ][0] += amount
+            else:
+                ingredient_list[ingredient.name] = [
+                    amount,
+                    ingredient.unit
+                ]
     response = HttpResponse(
-        '\n'.join(ingredient_list),
+        ('Cписок покупок:\n* ' +
+         '\n* '.join(f'{name} - {amount[0]} {amount[1]}'
+                     for name, amount in sorted(ingredient_list.items()))),
         'Content-Type: application/pdf'
     )
     response['Content-Disposition'] = ('attachment; '

@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator
 from django.db import models
 
 User = get_user_model()
@@ -19,7 +20,7 @@ class Ingredient(models.Model):
         verbose_name = 'Ингредиент'
 
     def __str__(self):
-        return f'{self.name}, {self.unit}.'
+        return f'{self.name} ({self.unit}.)'
 
 
 class Tag(models.Model):
@@ -47,24 +48,6 @@ class Tag(models.Model):
         return self.name
 
 
-class RecipeIngredient(models.Model):
-    ingredient = models.ForeignKey(
-        Ingredient,
-        on_delete=models.CASCADE,
-        related_name='amount')
-    amount = models.PositiveIntegerField(
-        verbose_name='Количество',
-        default=1
-        )
-
-    class Meta:
-        ordering = ['-id']
-        verbose_name = 'Количество ингредиента'
-
-    def __str__(self):
-        return f' {self.ingredient} - {self.amount}'
-
-
 class Recipe(models.Model):
     author = models.ForeignKey(
         User,
@@ -87,12 +70,17 @@ class Recipe(models.Model):
     )
     cooking_time = models.IntegerField(
         verbose_name='Время приготовления',
-        default=1
+        default=1,
+        validators=(MinValueValidator(1),)
     )
+    # ingredients = models.ManyToManyField(
+    #     RecipeIngredient,
+    #     verbose_name='Ингредиенты',
+    #     related_name='recipes',
+    # )
     ingredients = models.ManyToManyField(
-        RecipeIngredient,
-        verbose_name='Ингредиенты',
-        related_name='recipes',
+        Ingredient,
+        through='RecipeIngredient'
     )
     tags = models.ManyToManyField(
         Tag,
@@ -112,6 +100,40 @@ class Recipe(models.Model):
         return f'{self.name} от {self.author}'
 
 
+class RecipeIngredient(models.Model):
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name='recipe_ingredients'
+    )
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        related_name='amount'
+    )
+    amount = models.PositiveIntegerField(
+        verbose_name='Количество',
+        default=1,
+        validators=(MinValueValidator(
+            1,
+            message='Минимальное количество ингридиентов 1'),)
+        )
+
+    class Meta:
+        ordering = ['-id']
+        verbose_name = 'Количество ингредиента'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipe', 'ingredient'],
+                name='unique_amount_ingredient'
+            )
+        ]
+
+    def __str__(self):
+        return (f'В рецепте {self.recipe.name} содержиться '
+                f'{self.ingredient} - {self.amount}')
+
+
 class UserLikeRecipe(models.Model):
     user = models.OneToOneField(
         User,
@@ -128,6 +150,13 @@ class UserLikeRecipe(models.Model):
     class Meta:
         ordering = ['-id']
         verbose_name = 'Избранный рецепт'
+
+    def __str__(self):
+        list_recipes = [
+            recipe['name'] for recipe in self.recipes.values('name')
+        ]
+        return (f'Пользователь {self.user} добавил рецепты: '
+                f'{"".join(list_recipes)} в избранное')
 
 
 class UserShoppingCard(models.Model):
@@ -146,3 +175,10 @@ class UserShoppingCard(models.Model):
     class Meta:
         ordering = ['-id']
         verbose_name = 'Список покупок'
+
+    def __str__(self):
+        list_recipes = [
+            recipe['name'] for recipe in self.recipes.values('name')
+        ]
+        return (f'Пользователь {self.user} добавил рецепты: '
+                f'{"".join(list_recipes)} в покупки')

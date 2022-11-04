@@ -65,5 +65,5 @@ class Subscriptions(models.Model):
     )
 
     class Meta:
-        ordering = ['user']
+        ordering = ['-authors__id']
         verbose_name = 'На кого подписан'
