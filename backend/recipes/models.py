@@ -73,11 +73,6 @@ class Recipe(models.Model):
         default=1,
         validators=(MinValueValidator(1),)
     )
-    # ingredients = models.ManyToManyField(
-    #     RecipeIngredient,
-    #     verbose_name='Ингредиенты',
-    #     related_name='recipes',
-    # )
     ingredients = models.ManyToManyField(
         Ingredient,
         through='RecipeIngredient'
